@@ -115,6 +115,13 @@ impl LocalApic {
         self.regs.write_ticr(u64::from(initial));
     }
 
+    /// Sets the logical x2APIC ID.
+    ///
+    /// This is used when the APIC is in logical mode.
+    pub unsafe fn set_logical_id(&mut self, dest: u32) {
+        self.regs.write_ldr(u64::from(dest));
+    }
+
     /// Sends an IPI to the processor(s) in `dest`.
     pub unsafe fn send_ipi(&mut self, vector: u8, dest: u32) {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::Fixed);
