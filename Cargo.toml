@@ -1,0 +1,23 @@
+[package]
+name = "x2apic"
+version = "0.1.0"
+authors = ["Kevin Zhao <kzhao0986@gmail.com>"]
+edition = "2018"
+
+description = "A Rust interface to the x2apic interrupt architecture."
+repository = "https://github.com/kzhao0986/x2apic-rs"
+readme = "README.md"
+
+keywords = [ "no_std", "kernel", "interrupts", "apic" ]
+categories = [ "no-std" ]
+license = "MIT/Apache-2.0"
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[dependencies]
+x86_64 = "0.7.1"
+raw-cpuid = "6.1.0"
+bit = "0.1.1"
+bitflags = "1.1.0"
+paste = "0.1.5"
