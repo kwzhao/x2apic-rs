@@ -255,7 +255,7 @@ pub enum TimerMode {
 }
 
 impl TimerMode {
-    pub(super) fn as_u64(self) -> u64 {
+    pub(super) fn into_u64(self) -> u64 {
         self as u64
     }
 }
@@ -286,7 +286,7 @@ pub enum TimerDivide {
 }
 
 impl TimerDivide {
-    pub(super) fn as_u64(self) -> u64 {
+    pub(super) fn into_u64(self) -> u64 {
         self as u64
     }
 }
@@ -321,7 +321,7 @@ pub enum IpiDeliveryMode {
 }
 
 impl IpiDeliveryMode {
-    pub(super) fn as_u64(self) -> u64 {
+    pub(super) fn into_u64(self) -> u64 {
         self as u64
     }
 }
@@ -337,7 +337,7 @@ pub enum IpiAllShorthand {
 }
 
 impl IpiAllShorthand {
-    pub(super) fn as_u64(self) -> u64 {
+    pub(super) fn into_u64(self) -> u64 {
         self as u64
     }
 }

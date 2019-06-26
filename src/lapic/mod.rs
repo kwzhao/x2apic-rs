@@ -99,14 +99,14 @@ impl LocalApic {
     pub unsafe fn set_timer_mode(&mut self, mode: TimerMode) {
         self.timer_mode = mode;
         self.regs
-            .set_lvt_timer_bit_range(LVT_TIMER_MODE, mode.as_u64());
+            .set_lvt_timer_bit_range(LVT_TIMER_MODE, mode.into_u64());
     }
 
     /// Sets the timer divide configuration.
     pub unsafe fn set_timer_divide(&mut self, divide: TimerDivide) {
         self.timer_divide = divide;
         self.regs
-            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, divide.as_u64());
+            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, divide.into_u64());
     }
 
     /// Sets the timer initial count.
@@ -126,7 +126,7 @@ impl LocalApic {
     pub unsafe fn send_ipi(&mut self, vector: u8, dest: u32) {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::Fixed);
 
-        icr_val.set_bit_range(ICR_DESTINATION, dest as u64);
+        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -135,7 +135,7 @@ impl LocalApic {
     pub unsafe fn send_ipi_all(&mut self, vector: u8, who: IpiAllShorthand) {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::Fixed);
 
-        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.as_u64());
+        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
         self.regs.write_icr(icr_val);
     }
 
@@ -144,7 +144,7 @@ impl LocalApic {
         let mut icr_val =
             self.format_icr(vector, IpiDeliveryMode::LowestPriority);
 
-        icr_val.set_bit_range(ICR_DESTINATION, dest as u64);
+        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -158,7 +158,7 @@ impl LocalApic {
         let mut icr_val =
             self.format_icr(vector, IpiDeliveryMode::LowestPriority);
 
-        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.as_u64());
+        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
         self.regs.write_icr(icr_val);
     }
 
@@ -166,7 +166,7 @@ impl LocalApic {
     pub unsafe fn send_smi(&mut self, dest: u32) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::SystemManagement);
 
-        icr_val.set_bit_range(ICR_DESTINATION, dest as u64);
+        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -175,7 +175,7 @@ impl LocalApic {
     pub unsafe fn send_smi_all(&mut self, who: IpiAllShorthand) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::SystemManagement);
 
-        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.as_u64());
+        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
         self.regs.write_icr(icr_val);
     }
 
@@ -183,7 +183,7 @@ impl LocalApic {
     pub unsafe fn send_nmi(&mut self, dest: u32) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::NonMaskable);
 
-        icr_val.set_bit_range(ICR_DESTINATION, dest as u64);
+        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -192,7 +192,7 @@ impl LocalApic {
     pub unsafe fn send_nmi_all(&mut self, who: IpiAllShorthand) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::NonMaskable);
 
-        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.as_u64());
+        icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
         self.regs.write_icr(icr_val);
     }
 
@@ -200,7 +200,7 @@ impl LocalApic {
     pub unsafe fn send_sipi(&mut self, vector: u8, dest: u32) {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::StartUp);
 
-        icr_val.set_bit_range(ICR_DESTINATION, dest as u64);
+        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -210,7 +210,7 @@ impl LocalApic {
 
         icr_val.set_bit_range(
             ICR_DEST_SHORTHAND,
-            IpiAllShorthand::AllExcludingSelf.as_u64(),
+            IpiAllShorthand::AllExcludingSelf.into_u64(),
         );
         self.regs.write_icr(icr_val);
     }
@@ -224,7 +224,7 @@ impl LocalApic {
         let mut icr_val = 0;
 
         icr_val.set_bit_range(ICR_VECTOR, u64::from(vector));
-        icr_val.set_bit_range(ICR_DELIVERY_MODE, mode.as_u64());
+        icr_val.set_bit_range(ICR_DELIVERY_MODE, mode.into_u64());
         icr_val.set_bit(
             ICR_DESTINATION_MODE,
             self.ipi_destination_mode == IpiDestMode::Logical,
@@ -258,9 +258,9 @@ impl LocalApic {
 
     unsafe fn configure_timer(&mut self) {
         self.regs
-            .set_lvt_timer_bit_range(LVT_TIMER_MODE, self.timer_mode.as_u64());
+            .set_lvt_timer_bit_range(LVT_TIMER_MODE, self.timer_mode.into_u64());
         self.regs
-            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, self.timer_divide.as_u64());
+            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, self.timer_divide.into_u64());
         self.regs.write_ticr(u64::from(self.timer_initial));
     }
 
