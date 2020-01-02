@@ -5,7 +5,8 @@ A Rust interface to the x2apic interrupt architecture.
 This crate is in its early stages and has only been tested in QEMU; code
 contributions and bug reports are welcome.
 
-We currently require that processors support x2APIC mode.
+It will use x2APIC mode if supported by the CPU, otherwise it
+falls back to xAPIC mode.
 
 ## Usage
 

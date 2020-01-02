@@ -1,5 +1,5 @@
 use crate::lapic::lapic_msr::*;
-use crate::lapic::LocalApic;
+use crate::lapic::{LocalApic, LocalApicMode};
 use raw_cpuid::CpuId;
 
 /// The builder pattern for configuring the local APIC.
@@ -86,9 +86,12 @@ impl LocalApicBuilder {
     /// 1. the CPU does not support the x2apic interrupt architecture, or
     /// 2. any of the required fields are empty.
     pub fn build(&mut self) -> Result<LocalApic, &'static str> {
-        if !cpu_has_x2apic() {
-            return Err("x2APIC not supported");
-        }
+        let mode = if cpu_has_x2apic() {
+            LocalApicMode::X2Apic
+        } else {
+            LocalApicMode::XApic
+        };
+
         if self.timer_vector.is_none()
             || self.error_vector.is_none()
             || self.spurious_vector.is_none()
@@ -97,6 +100,7 @@ impl LocalApicBuilder {
         }
 
         Ok(LocalApic {
+            mode,
             timer_vector: self.timer_vector.unwrap(),
             error_vector: self.error_vector.unwrap(),
             spurious_vector: self.spurious_vector.unwrap(),
