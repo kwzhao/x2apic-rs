@@ -8,31 +8,37 @@ use x86_64::registers::model_specific::Msr;
 
 use crate::lapic::LocalApicMode;
 
-
 #[derive(Debug)]
-pub struct LocalApicRegister { msr: Msr, mmio_offset: u32 }
+pub enum LocalApicRegister {
+    X2apic(Msr),
+    XapicOffset(u64),
+}
 
 impl LocalApicRegister {
-    pub fn new(register: (u32, u32)) -> Self {
-        Self { msr: Msr::new(register.0), mmio_offset: register.1 }
-    }
-
-    pub unsafe fn mmio_address(&self) -> u64 {
-        let base = Msr::new(IA32_APIC_BASE).read() & 0xFFFFFF000;
-        base + self.mmio_offset as u64
-    }
-
-    pub unsafe fn read(&self, mode: &LocalApicMode) -> u64 {
+    pub fn new(mode: LocalApicMode, loc: (u32, u32)) -> Self {
         match mode {
-            LocalApicMode::XApic => *(self.mmio_address() as *const u64),
-            LocalApicMode::X2Apic => self.msr.read()
+            LocalApicMode::XApic { xapic_base } => {
+                Self::XapicOffset(xapic_base + loc.1 as u64)
+            }
+            LocalApicMode::X2Apic => Self::X2apic(Msr::new(loc.0)),
         }
     }
 
-    pub unsafe fn write(&mut self, mode: &LocalApicMode, value: u64) {
-        match mode {
-            LocalApicMode::XApic => { *(self.mmio_address() as *mut u64) = value },
-            LocalApicMode::X2Apic => self.msr.write(value)
+    pub unsafe fn read(&self) -> u64 {
+        match self {
+            Self::XapicOffset(addr) => {
+                core::ptr::read_volatile(addr as *const u64)
+            }
+            Self::X2apic(msr) => msr.read(),
+        }
+    }
+
+    pub unsafe fn write(&mut self, value: u64) {
+        match self {
+            LocalApicRegister::XapicOffset(offset) => {
+                *(offset as *mut u64) = value
+            }
+            LocalApicRegister::X2apic(msr) => msr.write(value),
         }
     }
 }
@@ -88,20 +94,19 @@ pub struct LocalApicRegisters {
 macro_rules! read {
     ($name:ident) => {
         paste::item! {
-            pub unsafe fn $name(&self, mode: &LocalApicMode) -> u64 {
-                self.$name.read(mode)
+            pub unsafe fn $name(&self) -> u64 {
+                self.$name.read()
             }
 
-            pub unsafe fn [<$name _bit>](&self, mode: &LocalApicMode, bit: usize) -> bool {
-                self.$name(mode).bit(bit)
+            pub unsafe fn [<$name _bit>](&self, bit: usize) -> bool {
+                self.$name().bit(bit)
             }
 
             pub unsafe fn [<$name _bit_range>](
                 &self,
-                mode: &LocalApicMode,
                 pos: Range<usize>,
             ) -> u64 {
-                self.$name(mode).bit_range(pos)
+                self.$name().bit_range(pos)
             }
         }
     };
@@ -110,8 +115,8 @@ macro_rules! read {
 macro_rules! write {
     ($name:ident) => {
         paste::item! {
-            pub unsafe fn [<write_ $name>](&mut self, mode: &LocalApicMode, value: u64) {
-                self.$name.write(mode, value);
+            pub unsafe fn [<write_ $name>](&mut self, value: u64) {
+                self.$name.write(value);
             }
         }
     };
@@ -125,80 +130,78 @@ macro_rules! read_write {
         paste::item! {
             pub unsafe fn [<set_ $name _bit>](
                 &mut self,
-                mode: &LocalApicMode,
                 bit: usize,
                 val: bool,
             ) {
-                let mut reg_val = self.$name(mode);
+                let mut reg_val = self.$name();
 
                 reg_val.set_bit(bit, val);
 
-                self.[<write_ $name>](mode, reg_val);
+                self.[<write_ $name>](reg_val);
             }
 
             pub unsafe fn [<set_ $name _bit_range>](
                 &mut self,
-                mode: &LocalApicMode,
                 pos: Range<usize>,
                 val: u64,
             ) {
-                let mut reg_val = self.$name(mode);
+                let mut reg_val = self.$name();
 
                 reg_val.set_bit_range(pos, val);
 
-                self.[<write_ $name>](mode, reg_val);
+                self.[<write_ $name>](reg_val);
             }
         }
     };
 }
 
 impl LocalApicRegisters {
-    pub fn new() -> Self {
+    pub fn new(mode: LocalApicMode) -> Self {
         LocalApicRegisters {
             base: Msr::new(IA32_APIC_BASE),
-            id: LocalApicRegister::new(ID),
-            version: LocalApicRegister::new(VERSION),
-            tpr: LocalApicRegister::new(TPR),
-            ppr: LocalApicRegister::new(PPR),
-            eoi: LocalApicRegister::new(EOI),
-            ldr: LocalApicRegister::new(LDR),
-            sivr: LocalApicRegister::new(SIVR),
-            isr0: LocalApicRegister::new(ISR_0),
-            isr1: LocalApicRegister::new(ISR_1),
-            isr2: LocalApicRegister::new(ISR_2),
-            isr3: LocalApicRegister::new(ISR_3),
-            isr4: LocalApicRegister::new(ISR_4),
-            isr5: LocalApicRegister::new(ISR_5),
-            isr6: LocalApicRegister::new(ISR_6),
-            isr7: LocalApicRegister::new(ISR_7),
-            tmr0: LocalApicRegister::new(TMR_0),
-            tmr1: LocalApicRegister::new(TMR_1),
-            tmr2: LocalApicRegister::new(TMR_2),
-            tmr3: LocalApicRegister::new(TMR_3),
-            tmr4: LocalApicRegister::new(TMR_4),
-            tmr5: LocalApicRegister::new(TMR_5),
-            tmr6: LocalApicRegister::new(TMR_6),
-            tmr7: LocalApicRegister::new(TMR_7),
-            irr0: LocalApicRegister::new(IRR_0),
-            irr1: LocalApicRegister::new(IRR_1),
-            irr2: LocalApicRegister::new(IRR_2),
-            irr3: LocalApicRegister::new(IRR_3),
-            irr4: LocalApicRegister::new(IRR_4),
-            irr5: LocalApicRegister::new(IRR_5),
-            irr6: LocalApicRegister::new(IRR_6),
-            irr7: LocalApicRegister::new(IRR_7),
-            error: LocalApicRegister::new(ERROR),
-            icr: LocalApicRegister::new(ICR),
-            lvt_timer: LocalApicRegister::new(LVT_TIMER),
-            lvt_thermal: LocalApicRegister::new(LVT_THERMAL),
-            lvt_perf: LocalApicRegister::new(LVT_PERF),
-            lvt_lint0: LocalApicRegister::new(LVT_LINT0),
-            lvt_lint1: LocalApicRegister::new(LVT_LINT1),
-            lvt_error: LocalApicRegister::new(LVT_ERROR),
-            ticr: LocalApicRegister::new(TICR),
-            tccr: LocalApicRegister::new(TCCR),
-            tdcr: LocalApicRegister::new(TDCR),
-            self_ipi: LocalApicRegister::new(SELF_IPI),
+            id: LocalApicRegister::new(mode, ID),
+            version: LocalApicRegister::new(mode, VERSION),
+            tpr: LocalApicRegister::new(mode, TPR),
+            ppr: LocalApicRegister::new(mode, PPR),
+            eoi: LocalApicRegister::new(mode, EOI),
+            ldr: LocalApicRegister::new(mode, LDR),
+            sivr: LocalApicRegister::new(mode, SIVR),
+            isr0: LocalApicRegister::new(mode, ISR_0),
+            isr1: LocalApicRegister::new(mode, ISR_1),
+            isr2: LocalApicRegister::new(mode, ISR_2),
+            isr3: LocalApicRegister::new(mode, ISR_3),
+            isr4: LocalApicRegister::new(mode, ISR_4),
+            isr5: LocalApicRegister::new(mode, ISR_5),
+            isr6: LocalApicRegister::new(mode, ISR_6),
+            isr7: LocalApicRegister::new(mode, ISR_7),
+            tmr0: LocalApicRegister::new(mode, TMR_0),
+            tmr1: LocalApicRegister::new(mode, TMR_1),
+            tmr2: LocalApicRegister::new(mode, TMR_2),
+            tmr3: LocalApicRegister::new(mode, TMR_3),
+            tmr4: LocalApicRegister::new(mode, TMR_4),
+            tmr5: LocalApicRegister::new(mode, TMR_5),
+            tmr6: LocalApicRegister::new(mode, TMR_6),
+            tmr7: LocalApicRegister::new(mode, TMR_7),
+            irr0: LocalApicRegister::new(mode, IRR_0),
+            irr1: LocalApicRegister::new(mode, IRR_1),
+            irr2: LocalApicRegister::new(mode, IRR_2),
+            irr3: LocalApicRegister::new(mode, IRR_3),
+            irr4: LocalApicRegister::new(mode, IRR_4),
+            irr5: LocalApicRegister::new(mode, IRR_5),
+            irr6: LocalApicRegister::new(mode, IRR_6),
+            irr7: LocalApicRegister::new(mode, IRR_7),
+            error: LocalApicRegister::new(mode, ERROR),
+            icr: LocalApicRegister::new(mode, ICR),
+            lvt_timer: LocalApicRegister::new(mode, LVT_TIMER),
+            lvt_thermal: LocalApicRegister::new(mode, LVT_THERMAL),
+            lvt_perf: LocalApicRegister::new(mode, LVT_PERF),
+            lvt_lint0: LocalApicRegister::new(mode, LVT_LINT0),
+            lvt_lint1: LocalApicRegister::new(mode, LVT_LINT1),
+            lvt_error: LocalApicRegister::new(mode, LVT_ERROR),
+            ticr: LocalApicRegister::new(mode, TICR),
+            tccr: LocalApicRegister::new(mode, TCCR),
+            tdcr: LocalApicRegister::new(mode, TDCR),
+            self_ipi: LocalApicRegister::new(mode, SELF_IPI),
         }
     }
 

@@ -3,6 +3,7 @@
 use bit::BitIndex;
 
 mod builder;
+pub use builder::xapic_base;
 pub use builder::LocalApicBuilder;
 
 mod lapic_msr;
@@ -12,13 +13,18 @@ pub use lapic_msr::{
 };
 
 /// Specifies which version of the APIC specification we are operating in
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum LocalApicMode {
     /// Extended APIC (XAPIC)
-    XApic,
+    XApic {
+        /// The base register location for local XApic.
+        /// This field is the Virtual Address equivalent
+        /// of the base address from `IA32_APIC_BASE`.
+        xapic_base: u64,
+    },
 
     /// Extended XAPIC (X2APIC)
-    X2Apic
+    X2Apic,
 }
 
 /// The local APIC structure.
@@ -66,7 +72,7 @@ impl LocalApic {
 
     /// Signals end-of-interrupt to the local APIC.
     pub unsafe fn end_of_interrupt(&mut self) {
-        self.regs.write_eoi(&self.mode, 0);
+        self.regs.write_eoi(0);
     }
 
     /// Is this processor the BSP?
@@ -76,64 +82,64 @@ impl LocalApic {
 
     /// Returns the local APIC ID.
     pub unsafe fn id(&self) -> u32 {
-        self.regs.id(&self.mode) as u32
+        self.regs.id() as u32
     }
 
     /// Returns the version number of the local APIC.
     pub unsafe fn version(&self) -> u8 {
-        self.regs.version_bit_range(&self.mode, VERSION_NR) as u8
+        self.regs.version_bit_range(VERSION_NR) as u8
     }
 
     /// Returns the maximum local vector table entry.
     pub unsafe fn max_lvt_entry(&self) -> u8 {
-        self.regs.version_bit_range(&self.mode, VERSION_MAX_LVT_ENTRY) as u8
+        self.regs.version_bit_range(VERSION_MAX_LVT_ENTRY) as u8
     }
 
     /// Does this processor support EOI-broadcast suppression?
     pub unsafe fn has_eoi_bcast_suppression(&self) -> bool {
-        self.regs.version_bit(&self.mode, VERSION_EOI_BCAST_SUPPRESSION)
+        self.regs.version_bit(VERSION_EOI_BCAST_SUPPRESSION)
     }
 
     /// Returns error flags from the error status register.
     pub unsafe fn error_flags(&self) -> ErrorFlags {
-        ErrorFlags::from_bits_truncate(self.regs.error(&self.mode) as u8)
+        ErrorFlags::from_bits_truncate(self.regs.error() as u8)
     }
 
     /// Enable the APIC timer.
     pub unsafe fn enable_timer(&mut self) {
-        self.regs.set_lvt_timer_bit(&self.mode, LVT_TIMER_MASK, false);
+        self.regs.set_lvt_timer_bit(LVT_TIMER_MASK, false);
     }
 
     /// Disable the APIC timer.
     pub unsafe fn disable_timer(&mut self) {
-        self.regs.set_lvt_timer_bit(&self.mode, LVT_TIMER_MASK, true);
+        self.regs.set_lvt_timer_bit(LVT_TIMER_MASK, true);
     }
 
     /// Sets the timer mode.
     pub unsafe fn set_timer_mode(&mut self, mode: TimerMode) {
         self.timer_mode = mode;
         self.regs
-            .set_lvt_timer_bit_range(&self.mode, LVT_TIMER_MODE, mode.into_u64());
+            .set_lvt_timer_bit_range(LVT_TIMER_MODE, mode.into_u64());
     }
 
     /// Sets the timer divide configuration.
     pub unsafe fn set_timer_divide(&mut self, divide: TimerDivide) {
         self.timer_divide = divide;
         self.regs
-            .set_tdcr_bit_range(&self.mode, TDCR_DIVIDE_VALUE, divide.into_u64());
+            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, divide.into_u64());
     }
 
     /// Sets the timer initial count.
     pub unsafe fn set_timer_initial(&mut self, initial: u32) {
         self.timer_initial = initial;
-        self.regs.write_ticr(&self.mode, u64::from(initial));
+        self.regs.write_ticr(u64::from(initial));
     }
 
     /// Sets the logical x2APIC ID.
     ///
     /// This is used when the APIC is in logical mode.
     pub unsafe fn set_logical_id(&mut self, dest: u32) {
-        self.regs.write_ldr(&self.mode, u64::from(dest));
+        self.regs.write_ldr(u64::from(dest));
     }
 
     /// Sends an IPI to the processor(s) in `dest`.
@@ -141,7 +147,7 @@ impl LocalApic {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::Fixed);
 
         icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Sends an IPI to every processor, either including or excluding the
@@ -150,7 +156,7 @@ impl LocalApic {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::Fixed);
 
         icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Send a lowest-priority IPI to the processor(s) in `dest`.
@@ -159,7 +165,7 @@ impl LocalApic {
             self.format_icr(vector, IpiDeliveryMode::LowestPriority);
 
         icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Send a lowest-priority IPI to all processors, either including or
@@ -173,7 +179,7 @@ impl LocalApic {
             self.format_icr(vector, IpiDeliveryMode::LowestPriority);
 
         icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Sends a system management IPI to `dest`.
@@ -181,7 +187,7 @@ impl LocalApic {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::SystemManagement);
 
         icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Sends a system management IPI to all processors, either including or
@@ -190,7 +196,7 @@ impl LocalApic {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::SystemManagement);
 
         icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Sends a non-maskable interrupt to the processor(s) in `dest`.
@@ -198,7 +204,7 @@ impl LocalApic {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::NonMaskable);
 
         icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Sends a non-maskable interrupt to all processors, either including or
@@ -207,7 +213,7 @@ impl LocalApic {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::NonMaskable);
 
         icr_val.set_bit_range(ICR_DEST_SHORTHAND, who.into_u64());
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Sends a start-up IPI to the processors in `dest`.
@@ -215,7 +221,7 @@ impl LocalApic {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::StartUp);
 
         icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Sends a start-up IPI to all other processors.
@@ -226,12 +232,12 @@ impl LocalApic {
             ICR_DEST_SHORTHAND,
             IpiAllShorthand::AllExcludingSelf.into_u64(),
         );
-        self.regs.write_icr(&self.mode, icr_val);
+        self.regs.write_icr(icr_val);
     }
 
     /// Issues an IPI to itself on vector `irq`.
     pub unsafe fn send_ipi_self(&mut self, vector: u8) {
-        self.regs.write_self_ipi(&self.mode, u64::from(vector));
+        self.regs.write_self_ipi(u64::from(vector));
     }
 
     fn format_icr(&self, vector: u8, mode: IpiDeliveryMode) -> u64 {
@@ -254,32 +260,36 @@ impl LocalApic {
     }
 
     unsafe fn software_enable(&mut self) {
-        self.regs.set_sivr_bit(&self.mode, SIVR_APIC_SOFTWARE_ENABLE, true);
+        self.regs.set_sivr_bit(SIVR_APIC_SOFTWARE_ENABLE, true);
     }
 
     unsafe fn remap_lvt_entries(&mut self) {
         self.regs.set_lvt_timer_bit_range(
-            &self.mode,
             LVT_TIMER_VECTOR,
             self.timer_vector as u64,
         );
         self.regs.set_lvt_error_bit_range(
-            &self.mode,
             LVT_ERROR_VECTOR,
             self.error_vector as u64,
         );
         self.regs
-            .set_sivr_bit_range(&self.mode, SIVR_VECTOR, self.spurious_vector as u64);
+            .set_sivr_bit_range(SIVR_VECTOR, self.spurious_vector as u64);
     }
 
     unsafe fn configure_timer(&mut self) {
-        self.regs.set_lvt_timer_bit_range(&self.mode, LVT_TIMER_MODE, self.timer_mode.into_u64());
-        self.regs.set_tdcr_bit_range(&self.mode, TDCR_DIVIDE_VALUE, self.timer_divide.into_u64());
-        self.regs.write_ticr(&self.mode, u64::from(self.timer_initial));
+        self.regs.set_lvt_timer_bit_range(
+            LVT_TIMER_MODE,
+            self.timer_mode.into_u64(),
+        );
+        self.regs.set_tdcr_bit_range(
+            TDCR_DIVIDE_VALUE,
+            self.timer_divide.into_u64(),
+        );
+        self.regs.write_ticr(u64::from(self.timer_initial));
     }
 
     unsafe fn disable_local_interrupt_pins(&mut self) {
-        self.regs.write_lvt_lint0(&self.mode, 0);
-        self.regs.write_lvt_lint1(&self.mode, 0);
+        self.regs.write_lvt_lint0(0);
+        self.regs.write_lvt_lint1(0);
     }
 }

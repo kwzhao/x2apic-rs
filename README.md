@@ -13,12 +13,16 @@ falls back to xAPIC mode.
 The local APIC is initialized like so:
 
 ```rust
-use x2apic::lapic::{LocalApic, LocalApicBuilder};
+use x2apic::lapic::{LocalApic, LocalApicBuilder, xapic_base};
+
+let apic_physical_address: u64 = unsafe { xapic_base() };
+let apic_virtual_address: u64 = <convert from physical address>
 
 let lapic = LocalApicBuilder::new()
     .timer_vector(timer_index)
     .error_vector(error_index)
     .spurious_vector(spurious_index)
+    .set_xapic_base(apic_virtual_address)
     .build()
     .unwrap_or_else(|err| panic!("{}", err));
 

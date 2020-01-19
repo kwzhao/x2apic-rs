@@ -14,6 +14,8 @@ pub struct LocalApicBuilder {
     timer_initial: Option<u32>,
 
     ipi_destination_mode: Option<IpiDestMode>,
+
+    xapic_base: Option<u64>,
 }
 
 impl LocalApicBuilder {
@@ -78,6 +80,14 @@ impl LocalApicBuilder {
         self
     }
 
+    /// Set the base address for XApic.
+    ///
+    /// This field is required only if xapic is to be used.
+    pub fn set_xapic_base(&mut self, value: u64) -> &mut Self {
+        self.xapic_base = Some(value);
+        self
+    }
+
     /// Builds a new `LocalApic`.
     ///
     /// # Errors
@@ -89,7 +99,13 @@ impl LocalApicBuilder {
         let mode = if cpu_has_x2apic() {
             LocalApicMode::X2Apic
         } else {
-            LocalApicMode::XApic
+            if self.xapic_base.is_none() {
+                return Err("LocalApicBuilder: XApic base is required.");
+            }
+
+            LocalApicMode::XApic {
+                xapic_base: self.xapic_base.unwrap(),
+            }
         };
 
         if self.timer_vector.is_none()
@@ -100,7 +116,6 @@ impl LocalApicBuilder {
         }
 
         Ok(LocalApic {
-            mode,
             timer_vector: self.timer_vector.unwrap(),
             error_vector: self.error_vector.unwrap(),
             spurious_vector: self.spurious_vector.unwrap(),
@@ -110,7 +125,8 @@ impl LocalApicBuilder {
             ipi_destination_mode: self
                 .ipi_destination_mode
                 .unwrap_or(IpiDestMode::Physical),
-            regs: LocalApicRegisters::new(),
+            regs: LocalApicRegisters::new(mode),
+            mode: mode,
         })
     }
 }
@@ -122,4 +138,11 @@ fn cpu_has_x2apic() -> bool {
         Some(finfo) => finfo.has_x2apic(),
         None => false,
     }
+}
+
+/// Get the XAPIC Base address.
+/// This function reads from `IA32_APIC_BASE`.
+pub unsafe fn xapic_base() -> u64 {
+    x86_64::registers::model_specific::Msr::new(IA32_APIC_BASE).read()
+        & 0xFFFFFF000 as u64
 }
