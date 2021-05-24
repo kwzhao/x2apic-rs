@@ -16,7 +16,7 @@ license = "MIT/Apache-2.0"
 maintenance = { status = "experimental" }
 
 [dependencies]
-x86_64 = "0.13"
+x86_64 = "0.14"
 raw-cpuid = "9.0.0"
 bit = "0.1.1"
 bitflags = "1.2"
