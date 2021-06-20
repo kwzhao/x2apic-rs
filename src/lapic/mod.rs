@@ -262,14 +262,10 @@ impl LocalApic {
     }
 
     unsafe fn configure_timer(&mut self) {
-        self.regs.set_lvt_timer_bit_range(
-            LVT_TIMER_MODE,
-            self.timer_mode.into_u64(),
-        );
-        self.regs.set_tdcr_bit_range(
-            TDCR_DIVIDE_VALUE,
-            self.timer_divide.into_u64(),
-        );
+        self.regs
+            .set_lvt_timer_bit_range(LVT_TIMER_MODE, self.timer_mode.into_u64());
+        self.regs
+            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, self.timer_divide.into_u64());
         self.regs.write_ticr(u64::from(self.timer_initial));
     }
 
