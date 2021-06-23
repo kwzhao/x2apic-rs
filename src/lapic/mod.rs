@@ -140,11 +140,6 @@ impl LocalApic {
         self.regs.tccr() as u32
     }
 
-    /// Returns the current timer count.
-    pub unsafe fn timer_current(&self) -> u32 {
-        self.regs.tccr() as u32
-    }
-
     /// Sets the logical x2APIC ID.
     ///
     /// This is used when the APIC is in logical mode.
