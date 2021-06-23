@@ -119,27 +119,32 @@ impl LocalApic {
     pub unsafe fn set_timer_mode(&mut self, mode: TimerMode) {
         self.timer_mode = mode;
         self.regs
-            .set_lvt_timer_bit_range(LVT_TIMER_MODE, mode.into_u64());
+            .set_lvt_timer_bit_range(LVT_TIMER_MODE, mode.into_u32());
     }
 
     /// Sets the timer divide configuration.
     pub unsafe fn set_timer_divide(&mut self, divide: TimerDivide) {
         self.timer_divide = divide;
         self.regs
-            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, divide.into_u64());
+            .set_tdcr_bit_range(TDCR_DIVIDE_VALUE, divide.into_u32());
     }
 
     /// Sets the timer initial count.
     pub unsafe fn set_timer_initial(&mut self, initial: u32) {
         self.timer_initial = initial;
-        self.regs.write_ticr(u64::from(initial));
+        self.regs.write_ticr(initial);
+    }
+
+    /// Returns the current timer count.
+    pub unsafe fn timer_current(&self) -> u32 {
+        self.regs.tccr() as u32
     }
 
     /// Sets the logical x2APIC ID.
     ///
     /// This is used when the APIC is in logical mode.
     pub unsafe fn set_logical_id(&mut self, dest: u32) {
-        self.regs.write_ldr(u64::from(dest));
+        self.regs.write_ldr(dest);
     }
 
     /// Sends an IPI to the processor(s) in `dest`.
@@ -237,7 +242,7 @@ impl LocalApic {
 
     /// Issues an IPI to itself on vector `irq`.
     pub unsafe fn send_ipi_self(&mut self, vector: u8) {
-        self.regs.write_self_ipi(u64::from(vector));
+        self.regs.write_self_ipi(u32::from(vector));
     }
 
     fn format_icr(&self, vector: u8, mode: IpiDeliveryMode) -> u64 {
@@ -266,26 +271,26 @@ impl LocalApic {
     unsafe fn remap_lvt_entries(&mut self) {
         self.regs.set_lvt_timer_bit_range(
             LVT_TIMER_VECTOR,
-            self.timer_vector as u64,
+            self.timer_vector as u32,
         );
         self.regs.set_lvt_error_bit_range(
             LVT_ERROR_VECTOR,
-            self.error_vector as u64,
+            self.error_vector as u32,
         );
         self.regs
-            .set_sivr_bit_range(SIVR_VECTOR, self.spurious_vector as u64);
+            .set_sivr_bit_range(SIVR_VECTOR, self.spurious_vector as u32);
     }
 
     unsafe fn configure_timer(&mut self) {
         self.regs.set_lvt_timer_bit_range(
             LVT_TIMER_MODE,
-            self.timer_mode.into_u64(),
+            self.timer_mode.into_u32(),
         );
         self.regs.set_tdcr_bit_range(
             TDCR_DIVIDE_VALUE,
-            self.timer_divide.into_u64(),
+            self.timer_divide.into_u32(),
         );
-        self.regs.write_ticr(u64::from(self.timer_initial));
+        self.regs.write_ticr(self.timer_initial);
     }
 
     unsafe fn disable_local_interrupt_pins(&mut self) {

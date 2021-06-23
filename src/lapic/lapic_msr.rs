@@ -24,19 +24,44 @@ impl LocalApicRegister {
         }
     }
 
-    pub unsafe fn read(&self) -> u64 {
+    pub unsafe fn read(&self) -> u32 {
         match self {
             Self::XapicOffset(addr) => {
-                core::ptr::read_volatile(addr as *const u64)
+                core::ptr::read_volatile(*addr as *const u32)
+            }
+            Self::X2apic(msr) => msr.read() as u32,
+        }
+    }
+
+    pub unsafe fn read_u64(&self) -> u64 {
+        match self {
+            Self::XapicOffset(addr) => {
+                let lower = core::ptr::read_volatile(*addr as *const u32);
+                let upper =
+                    core::ptr::read_volatile((*addr + 0x10) as *const u32);
+                (lower as u64) | ((upper as u64) << 32)
             }
             Self::X2apic(msr) => msr.read(),
         }
     }
 
-    pub unsafe fn write(&mut self, value: u64) {
+    pub unsafe fn write(&mut self, value: u32) {
         match self {
             LocalApicRegister::XapicOffset(offset) => {
-                *(offset as *mut u64) = value
+                core::ptr::write_volatile(*offset as *mut u32, value)
+            }
+            LocalApicRegister::X2apic(msr) => msr.write(value as u64),
+        }
+    }
+
+    pub unsafe fn write_u64(&mut self, value: u64) {
+        match self {
+            LocalApicRegister::XapicOffset(offset) => {
+                core::ptr::write_volatile(
+                    (*offset + 0x10) as *mut u32,
+                    (value >> 32) as u32,
+                );
+                core::ptr::write_volatile(*offset as *mut u32, value as u32);
             }
             LocalApicRegister::X2apic(msr) => msr.write(value),
         }
@@ -94,7 +119,7 @@ pub struct LocalApicRegisters {
 macro_rules! read {
     ($name:ident) => {
         paste::item! {
-            pub unsafe fn $name(&self) -> u64 {
+            pub unsafe fn $name(&self) -> u32 {
                 self.$name.read()
             }
 
@@ -105,7 +130,7 @@ macro_rules! read {
             pub unsafe fn [<$name _bit_range>](
                 &self,
                 pos: Range<usize>,
-            ) -> u64 {
+            ) -> u32 {
                 self.$name().bit_range(pos)
             }
         }
@@ -115,7 +140,7 @@ macro_rules! read {
 macro_rules! write {
     ($name:ident) => {
         paste::item! {
-            pub unsafe fn [<write_ $name>](&mut self, value: u64) {
+            pub unsafe fn [<write_ $name>](&mut self, value: u32) {
                 self.$name.write(value);
             }
         }
@@ -143,7 +168,7 @@ macro_rules! read_write {
             pub unsafe fn [<set_ $name _bit_range>](
                 &mut self,
                 pos: Range<usize>,
-                val: u64,
+                val: u32,
             ) {
                 let mut reg_val = self.$name();
 
@@ -223,6 +248,24 @@ impl LocalApicRegisters {
         self.write_base(base);
     }
 
+    pub unsafe fn icr(&self) -> u64 {
+        self.icr.read_u64()
+    }
+
+    pub unsafe fn icr_bit(&self, bit: usize) -> bool {
+        self.icr().bit(bit)
+    }
+
+    pub unsafe fn write_icr(&mut self, value: u64) {
+        self.icr.write_u64(value)
+    }
+
+    pub unsafe fn set_icr_bit(&mut self, bit: usize, value: bool) {
+        let mut icr = self.icr();
+        icr.set_bit(bit, value);
+        self.write_icr(icr);
+    }
+
     read!(id);
     read!(version);
     read_write!(tpr);
@@ -255,7 +298,6 @@ impl LocalApicRegisters {
     read!(irr6);
     read!(irr7);
     read!(error);
-    read_write!(icr);
     read_write!(lvt_timer);
     read_write!(lvt_thermal);
     read_write!(lvt_perf);
@@ -309,8 +351,8 @@ pub enum TimerMode {
 }
 
 impl TimerMode {
-    pub(super) fn into_u64(self) -> u64 {
-        self as u64
+    pub(super) fn into_u32(self) -> u32 {
+        self as u32
     }
 }
 
@@ -340,8 +382,8 @@ pub enum TimerDivide {
 }
 
 impl TimerDivide {
-    pub(super) fn into_u64(self) -> u64 {
-        self as u64
+    pub(super) fn into_u32(self) -> u32 {
+        self as u32
     }
 }
 
