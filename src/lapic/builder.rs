@@ -1,5 +1,5 @@
 use crate::lapic::lapic_msr::*;
-use crate::lapic::LocalApic;
+use crate::lapic::{LocalApic, LocalApicMode};
 use raw_cpuid::CpuId;
 
 /// The builder pattern for configuring the local APIC.
@@ -14,6 +14,8 @@ pub struct LocalApicBuilder {
     timer_initial: Option<u32>,
 
     ipi_destination_mode: Option<IpiDestMode>,
+
+    xapic_base: Option<u64>,
 }
 
 impl LocalApicBuilder {
@@ -78,6 +80,14 @@ impl LocalApicBuilder {
         self
     }
 
+    /// Set the base address for XApic.
+    ///
+    /// This field is required only if xapic is to be used.
+    pub fn set_xapic_base(&mut self, value: u64) -> &mut Self {
+        self.xapic_base = Some(value);
+        self
+    }
+
     /// Builds a new `LocalApic`.
     ///
     /// # Errors
@@ -86,9 +96,18 @@ impl LocalApicBuilder {
     /// 1. the CPU does not support the x2apic interrupt architecture, or
     /// 2. any of the required fields are empty.
     pub fn build(&mut self) -> Result<LocalApic, &'static str> {
-        if !cpu_has_x2apic() {
-            return Err("x2APIC not supported");
-        }
+        let mode = if cpu_has_x2apic() {
+            LocalApicMode::X2Apic
+        } else {
+            if self.xapic_base.is_none() {
+                return Err("LocalApicBuilder: XApic base is required.");
+            }
+
+            LocalApicMode::XApic {
+                xapic_base: self.xapic_base.unwrap(),
+            }
+        };
+
         if self.timer_vector.is_none()
             || self.error_vector.is_none()
             || self.spurious_vector.is_none()
@@ -106,7 +125,8 @@ impl LocalApicBuilder {
             ipi_destination_mode: self
                 .ipi_destination_mode
                 .unwrap_or(IpiDestMode::Physical),
-            regs: LocalApicRegisters::new(),
+            regs: LocalApicRegisters::new(mode),
+            mode: mode,
         })
     }
 }
@@ -118,4 +138,11 @@ fn cpu_has_x2apic() -> bool {
         Some(finfo) => finfo.has_x2apic(),
         None => false,
     }
+}
+
+/// Get the XAPIC Base address.
+/// This function reads from `IA32_APIC_BASE`.
+pub unsafe fn xapic_base() -> u64 {
+    x86_64::registers::model_specific::Msr::new(IA32_APIC_BASE).read()
+        & 0xFFFFFF000 as u64
 }

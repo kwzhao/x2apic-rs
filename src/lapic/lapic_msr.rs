@@ -6,58 +6,120 @@ use core::ops::Range;
 use paste;
 use x86_64::registers::model_specific::Msr;
 
+use crate::lapic::LocalApicMode;
+
+#[derive(Debug)]
+pub enum LocalApicRegister {
+    X2apic(Msr),
+    XapicOffset(u64),
+}
+
+impl LocalApicRegister {
+    pub fn new(mode: LocalApicMode, loc: (u32, u32)) -> Self {
+        match mode {
+            LocalApicMode::XApic { xapic_base } => {
+                Self::XapicOffset(xapic_base + loc.1 as u64)
+            }
+            LocalApicMode::X2Apic => Self::X2apic(Msr::new(loc.0)),
+        }
+    }
+
+    pub unsafe fn read(&self) -> u32 {
+        match self {
+            Self::XapicOffset(addr) => {
+                core::ptr::read_volatile(*addr as *const u32)
+            }
+            Self::X2apic(msr) => msr.read() as u32,
+        }
+    }
+
+    pub unsafe fn read_u64(&self) -> u64 {
+        match self {
+            Self::XapicOffset(addr) => {
+                let lower = core::ptr::read_volatile(*addr as *const u32);
+                let upper =
+                    core::ptr::read_volatile((*addr + 0x10) as *const u32);
+                (lower as u64) | ((upper as u64) << 32)
+            }
+            Self::X2apic(msr) => msr.read(),
+        }
+    }
+
+    pub unsafe fn write(&mut self, value: u32) {
+        match self {
+            LocalApicRegister::XapicOffset(offset) => {
+                core::ptr::write_volatile(*offset as *mut u32, value)
+            }
+            LocalApicRegister::X2apic(msr) => msr.write(value as u64),
+        }
+    }
+
+    pub unsafe fn write_u64(&mut self, value: u64) {
+        match self {
+            LocalApicRegister::XapicOffset(offset) => {
+                core::ptr::write_volatile(
+                    (*offset + 0x10) as *mut u32,
+                    (value >> 32) as u32,
+                );
+                core::ptr::write_volatile(*offset as *mut u32, value as u32);
+            }
+            LocalApicRegister::X2apic(msr) => msr.write(value),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct LocalApicRegisters {
     base: Msr,
-    id: Msr,
-    version: Msr,
-    tpr: Msr,
-    ppr: Msr,
-    eoi: Msr,
-    ldr: Msr,
-    sivr: Msr,
-    isr0: Msr,
-    isr1: Msr,
-    isr2: Msr,
-    isr3: Msr,
-    isr4: Msr,
-    isr5: Msr,
-    isr6: Msr,
-    isr7: Msr,
-    tmr0: Msr,
-    tmr1: Msr,
-    tmr2: Msr,
-    tmr3: Msr,
-    tmr4: Msr,
-    tmr5: Msr,
-    tmr6: Msr,
-    tmr7: Msr,
-    irr0: Msr,
-    irr1: Msr,
-    irr2: Msr,
-    irr3: Msr,
-    irr4: Msr,
-    irr5: Msr,
-    irr6: Msr,
-    irr7: Msr,
-    error: Msr,
-    icr: Msr,
-    lvt_timer: Msr,
-    lvt_thermal: Msr,
-    lvt_perf: Msr,
-    lvt_lint0: Msr,
-    lvt_lint1: Msr,
-    lvt_error: Msr,
-    ticr: Msr,
-    tccr: Msr,
-    tdcr: Msr,
-    self_ipi: Msr,
+    id: LocalApicRegister,
+    version: LocalApicRegister,
+    tpr: LocalApicRegister,
+    ppr: LocalApicRegister,
+    eoi: LocalApicRegister,
+    ldr: LocalApicRegister,
+    sivr: LocalApicRegister,
+    isr0: LocalApicRegister,
+    isr1: LocalApicRegister,
+    isr2: LocalApicRegister,
+    isr3: LocalApicRegister,
+    isr4: LocalApicRegister,
+    isr5: LocalApicRegister,
+    isr6: LocalApicRegister,
+    isr7: LocalApicRegister,
+    tmr0: LocalApicRegister,
+    tmr1: LocalApicRegister,
+    tmr2: LocalApicRegister,
+    tmr3: LocalApicRegister,
+    tmr4: LocalApicRegister,
+    tmr5: LocalApicRegister,
+    tmr6: LocalApicRegister,
+    tmr7: LocalApicRegister,
+    irr0: LocalApicRegister,
+    irr1: LocalApicRegister,
+    irr2: LocalApicRegister,
+    irr3: LocalApicRegister,
+    irr4: LocalApicRegister,
+    irr5: LocalApicRegister,
+    irr6: LocalApicRegister,
+    irr7: LocalApicRegister,
+    error: LocalApicRegister,
+    icr: LocalApicRegister,
+    lvt_timer: LocalApicRegister,
+    lvt_thermal: LocalApicRegister,
+    lvt_perf: LocalApicRegister,
+    lvt_lint0: LocalApicRegister,
+    lvt_lint1: LocalApicRegister,
+    lvt_error: LocalApicRegister,
+    ticr: LocalApicRegister,
+    tccr: LocalApicRegister,
+    tdcr: LocalApicRegister,
+    self_ipi: LocalApicRegister,
 }
 
 macro_rules! read {
     ($name:ident) => {
         paste::item! {
-            pub unsafe fn $name(&self) -> u64 {
+            pub unsafe fn $name(&self) -> u32 {
                 self.$name.read()
             }
 
@@ -68,7 +130,7 @@ macro_rules! read {
             pub unsafe fn [<$name _bit_range>](
                 &self,
                 pos: Range<usize>,
-            ) -> u64 {
+            ) -> u32 {
                 self.$name().bit_range(pos)
             }
         }
@@ -78,7 +140,7 @@ macro_rules! read {
 macro_rules! write {
     ($name:ident) => {
         paste::item! {
-            pub unsafe fn [<write_ $name>](&mut self, value: u64) {
+            pub unsafe fn [<write_ $name>](&mut self, value: u32) {
                 self.$name.write(value);
             }
         }
@@ -106,7 +168,7 @@ macro_rules! read_write {
             pub unsafe fn [<set_ $name _bit_range>](
                 &mut self,
                 pos: Range<usize>,
-                val: u64,
+                val: u32,
             ) {
                 let mut reg_val = self.$name();
 
@@ -119,56 +181,91 @@ macro_rules! read_write {
 }
 
 impl LocalApicRegisters {
-    pub fn new() -> Self {
+    pub fn new(mode: LocalApicMode) -> Self {
         LocalApicRegisters {
             base: Msr::new(IA32_APIC_BASE),
-            id: Msr::new(ID),
-            version: Msr::new(VERSION),
-            tpr: Msr::new(TPR),
-            ppr: Msr::new(PPR),
-            eoi: Msr::new(EOI),
-            ldr: Msr::new(LDR),
-            sivr: Msr::new(SIVR),
-            isr0: Msr::new(ISR_0),
-            isr1: Msr::new(ISR_1),
-            isr2: Msr::new(ISR_2),
-            isr3: Msr::new(ISR_3),
-            isr4: Msr::new(ISR_4),
-            isr5: Msr::new(ISR_5),
-            isr6: Msr::new(ISR_6),
-            isr7: Msr::new(ISR_7),
-            tmr0: Msr::new(TMR_0),
-            tmr1: Msr::new(TMR_1),
-            tmr2: Msr::new(TMR_2),
-            tmr3: Msr::new(TMR_3),
-            tmr4: Msr::new(TMR_4),
-            tmr5: Msr::new(TMR_5),
-            tmr6: Msr::new(TMR_6),
-            tmr7: Msr::new(TMR_7),
-            irr0: Msr::new(IRR_0),
-            irr1: Msr::new(IRR_1),
-            irr2: Msr::new(IRR_2),
-            irr3: Msr::new(IRR_3),
-            irr4: Msr::new(IRR_4),
-            irr5: Msr::new(IRR_5),
-            irr6: Msr::new(IRR_6),
-            irr7: Msr::new(IRR_7),
-            error: Msr::new(ERROR),
-            icr: Msr::new(ICR),
-            lvt_timer: Msr::new(LVT_TIMER),
-            lvt_thermal: Msr::new(LVT_THERMAL),
-            lvt_perf: Msr::new(LVT_PERF),
-            lvt_lint0: Msr::new(LVT_LINT0),
-            lvt_lint1: Msr::new(LVT_LINT1),
-            lvt_error: Msr::new(LVT_ERROR),
-            ticr: Msr::new(TICR),
-            tccr: Msr::new(TCCR),
-            tdcr: Msr::new(TDCR),
-            self_ipi: Msr::new(SELF_IPI),
+            id: LocalApicRegister::new(mode, ID),
+            version: LocalApicRegister::new(mode, VERSION),
+            tpr: LocalApicRegister::new(mode, TPR),
+            ppr: LocalApicRegister::new(mode, PPR),
+            eoi: LocalApicRegister::new(mode, EOI),
+            ldr: LocalApicRegister::new(mode, LDR),
+            sivr: LocalApicRegister::new(mode, SIVR),
+            isr0: LocalApicRegister::new(mode, ISR_0),
+            isr1: LocalApicRegister::new(mode, ISR_1),
+            isr2: LocalApicRegister::new(mode, ISR_2),
+            isr3: LocalApicRegister::new(mode, ISR_3),
+            isr4: LocalApicRegister::new(mode, ISR_4),
+            isr5: LocalApicRegister::new(mode, ISR_5),
+            isr6: LocalApicRegister::new(mode, ISR_6),
+            isr7: LocalApicRegister::new(mode, ISR_7),
+            tmr0: LocalApicRegister::new(mode, TMR_0),
+            tmr1: LocalApicRegister::new(mode, TMR_1),
+            tmr2: LocalApicRegister::new(mode, TMR_2),
+            tmr3: LocalApicRegister::new(mode, TMR_3),
+            tmr4: LocalApicRegister::new(mode, TMR_4),
+            tmr5: LocalApicRegister::new(mode, TMR_5),
+            tmr6: LocalApicRegister::new(mode, TMR_6),
+            tmr7: LocalApicRegister::new(mode, TMR_7),
+            irr0: LocalApicRegister::new(mode, IRR_0),
+            irr1: LocalApicRegister::new(mode, IRR_1),
+            irr2: LocalApicRegister::new(mode, IRR_2),
+            irr3: LocalApicRegister::new(mode, IRR_3),
+            irr4: LocalApicRegister::new(mode, IRR_4),
+            irr5: LocalApicRegister::new(mode, IRR_5),
+            irr6: LocalApicRegister::new(mode, IRR_6),
+            irr7: LocalApicRegister::new(mode, IRR_7),
+            error: LocalApicRegister::new(mode, ERROR),
+            icr: LocalApicRegister::new(mode, ICR),
+            lvt_timer: LocalApicRegister::new(mode, LVT_TIMER),
+            lvt_thermal: LocalApicRegister::new(mode, LVT_THERMAL),
+            lvt_perf: LocalApicRegister::new(mode, LVT_PERF),
+            lvt_lint0: LocalApicRegister::new(mode, LVT_LINT0),
+            lvt_lint1: LocalApicRegister::new(mode, LVT_LINT1),
+            lvt_error: LocalApicRegister::new(mode, LVT_ERROR),
+            ticr: LocalApicRegister::new(mode, TICR),
+            tccr: LocalApicRegister::new(mode, TCCR),
+            tdcr: LocalApicRegister::new(mode, TDCR),
+            self_ipi: LocalApicRegister::new(mode, SELF_IPI),
         }
     }
 
-    read_write!(base);
+    pub unsafe fn base(&self) -> u64 {
+        self.base.read()
+    }
+
+    pub unsafe fn base_bit(&self, bit: usize) -> bool {
+        self.base().bit(bit)
+    }
+
+    pub unsafe fn write_base(&mut self, value: u64) {
+        self.base.write(value)
+    }
+
+    pub unsafe fn set_base_bit(&mut self, bit: usize, value: bool) {
+        let mut base = self.base();
+        base.set_bit(bit, value);
+        self.write_base(base);
+    }
+
+    pub unsafe fn icr(&self) -> u64 {
+        self.icr.read_u64()
+    }
+
+    pub unsafe fn icr_bit(&self, bit: usize) -> bool {
+        self.icr().bit(bit)
+    }
+
+    pub unsafe fn write_icr(&mut self, value: u64) {
+        self.icr.write_u64(value)
+    }
+
+    pub unsafe fn set_icr_bit(&mut self, bit: usize, value: bool) {
+        let mut icr = self.icr();
+        icr.set_bit(bit, value);
+        self.write_icr(icr);
+    }
+
     read!(id);
     read!(version);
     read_write!(tpr);
@@ -201,7 +298,6 @@ impl LocalApicRegisters {
     read!(irr6);
     read!(irr7);
     read!(error);
-    read_write!(icr);
     read_write!(lvt_timer);
     read_write!(lvt_thermal);
     read_write!(lvt_perf);
@@ -255,8 +351,8 @@ pub enum TimerMode {
 }
 
 impl TimerMode {
-    pub(super) fn into_u64(self) -> u64 {
-        self as u64
+    pub(super) fn into_u32(self) -> u32 {
+        self as u32
     }
 }
 
@@ -286,8 +382,8 @@ pub enum TimerDivide {
 }
 
 impl TimerDivide {
-    pub(super) fn into_u64(self) -> u64 {
-        self as u64
+    pub(super) fn into_u32(self) -> u32 {
+        self as u32
     }
 }
 
@@ -346,56 +442,57 @@ impl IpiAllShorthand {
 
 pub const IA32_APIC_BASE: u32 = 0x1B;
 
-pub const ID: u32 = 0x802;
-pub const VERSION: u32 = 0x803;
-pub const TPR: u32 = 0x808;
-pub const PPR: u32 = 0x80A;
-pub const EOI: u32 = 0x80B;
-pub const LDR: u32 = 0x80D;
-pub const SIVR: u32 = 0x80F;
+// format is (X2APIC MSR, XAPIC MMIO offset)
+pub const ID: (u32, u32) = (0x802, 0x020);
+pub const VERSION: (u32, u32) = (0x803, 0x030);
+pub const TPR: (u32, u32) = (0x808, 0x080);
+pub const PPR: (u32, u32) = (0x80A, 0x0A0);
+pub const EOI: (u32, u32) = (0x80B, 0x0B0);
+pub const LDR: (u32, u32) = (0x80D, 0x0D0);
+pub const SIVR: (u32, u32) = (0x80F, 0x0F0);
 
-pub const ISR_0: u32 = 0x810;
-pub const ISR_1: u32 = 0x811;
-pub const ISR_2: u32 = 0x812;
-pub const ISR_3: u32 = 0x813;
-pub const ISR_4: u32 = 0x814;
-pub const ISR_5: u32 = 0x815;
-pub const ISR_6: u32 = 0x816;
-pub const ISR_7: u32 = 0x817;
+pub const ISR_0: (u32, u32) = (0x810, 0x100);
+pub const ISR_1: (u32, u32) = (0x811, 0x110);
+pub const ISR_2: (u32, u32) = (0x812, 0x120);
+pub const ISR_3: (u32, u32) = (0x813, 0x130);
+pub const ISR_4: (u32, u32) = (0x814, 0x140);
+pub const ISR_5: (u32, u32) = (0x815, 0x150);
+pub const ISR_6: (u32, u32) = (0x816, 0x160);
+pub const ISR_7: (u32, u32) = (0x817, 0x170);
 
-pub const TMR_0: u32 = 0x818;
-pub const TMR_1: u32 = 0x819;
-pub const TMR_2: u32 = 0x81A;
-pub const TMR_3: u32 = 0x81B;
-pub const TMR_4: u32 = 0x81C;
-pub const TMR_5: u32 = 0x81D;
-pub const TMR_6: u32 = 0x81E;
-pub const TMR_7: u32 = 0x81F;
+pub const TMR_0: (u32, u32) = (0x818, 0x180);
+pub const TMR_1: (u32, u32) = (0x819, 0x190);
+pub const TMR_2: (u32, u32) = (0x81A, 0x1A0);
+pub const TMR_3: (u32, u32) = (0x81B, 0x1B0);
+pub const TMR_4: (u32, u32) = (0x81C, 0x1C0);
+pub const TMR_5: (u32, u32) = (0x81D, 0x1D0);
+pub const TMR_6: (u32, u32) = (0x81E, 0x1E0);
+pub const TMR_7: (u32, u32) = (0x81F, 0x1F0);
 
-pub const IRR_0: u32 = 0x820;
-pub const IRR_1: u32 = 0x821;
-pub const IRR_2: u32 = 0x822;
-pub const IRR_3: u32 = 0x823;
-pub const IRR_4: u32 = 0x824;
-pub const IRR_5: u32 = 0x825;
-pub const IRR_6: u32 = 0x826;
-pub const IRR_7: u32 = 0x827;
+pub const IRR_0: (u32, u32) = (0x820, 0x200);
+pub const IRR_1: (u32, u32) = (0x821, 0x210);
+pub const IRR_2: (u32, u32) = (0x822, 0x220);
+pub const IRR_3: (u32, u32) = (0x823, 0x230);
+pub const IRR_4: (u32, u32) = (0x824, 0x240);
+pub const IRR_5: (u32, u32) = (0x825, 0x250);
+pub const IRR_6: (u32, u32) = (0x826, 0x260);
+pub const IRR_7: (u32, u32) = (0x827, 0x270);
 
-pub const ERROR: u32 = 0x828;
-pub const ICR: u32 = 0x830;
+pub const ERROR: (u32, u32) = (0x828, 0x280);
+pub const ICR: (u32, u32) = (0x830, 0x300);
 
-pub const LVT_TIMER: u32 = 0x832;
-pub const LVT_THERMAL: u32 = 0x833;
-pub const LVT_PERF: u32 = 0x834;
-pub const LVT_LINT0: u32 = 0x835;
-pub const LVT_LINT1: u32 = 0x836;
-pub const LVT_ERROR: u32 = 0x837;
+pub const LVT_TIMER: (u32, u32) = (0x832, 0x320);
+pub const LVT_THERMAL: (u32, u32) = (0x833, 0x330);
+pub const LVT_PERF: (u32, u32) = (0x834, 0x340);
+pub const LVT_LINT0: (u32, u32) = (0x835, 0x350);
+pub const LVT_LINT1: (u32, u32) = (0x836, 0x360);
+pub const LVT_ERROR: (u32, u32) = (0x837, 0x370);
 
-pub const TICR: u32 = 0x838;
-pub const TCCR: u32 = 0x839;
-pub const TDCR: u32 = 0x83E;
+pub const TICR: (u32, u32) = (0x838, 0x380);
+pub const TCCR: (u32, u32) = (0x839, 0x390);
+pub const TDCR: (u32, u32) = (0x83E, 0x3E0);
 
-pub const SELF_IPI: u32 = 0x83F;
+pub const SELF_IPI: (u32, u32) = (0x83F, 0xFFFF);
 
 // Register bits and bit ranges.
 
