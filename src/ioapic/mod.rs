@@ -4,8 +4,7 @@ mod ioapic_regs;
 use ioapic_regs::*;
 
 mod irq_entry;
-use irq_entry::*;
-pub use irq_entry::{IrqFlags, IrqMode};
+pub use irq_entry::{IrqFlags, IrqMode, RedirectionTableEntry};
 
 /// The IOAPIC structure.
 #[derive(Debug)]
@@ -67,27 +66,33 @@ impl IoApic {
         self.regs.write(ARBITRATION, u32::from(id) << 24);
     }
 
-    /// Enable interrupt number `irq` on the CPUs specified by `dest`.
-    pub unsafe fn enable_irq(
+    /// Returns the redirection table entry of `irq`.
+    pub unsafe fn table_entry(&mut self, irq: u8) -> RedirectionTableEntry {
+        let lo = irq_entry::lo(irq);
+        let hi = irq_entry::hi(irq);
+        RedirectionTableEntry::from_raw(self.regs.read(lo), self.regs.read(hi))
+    }
+
+    /// Configures the redirection table entry of `irq` to `entry`.
+    pub unsafe fn set_table_entry(
         &mut self,
         irq: u8,
-        dest: u32,
-        mode: IrqMode,
-        options: IrqFlags,
+        entry: RedirectionTableEntry,
     ) {
         let lo = irq_entry::lo(irq);
         let hi = irq_entry::hi(irq);
+        let (lo_value, hi_value) = entry.into_raw();
+        self.regs.write(lo, lo_value);
+        self.regs.write(hi, hi_value);
+    }
 
-        self.regs.set(hi, dest << 24);
-
-        self.regs.clear(lo, IRQ_MODE_MASK | IrqFlags::all().bits());
-        self.regs.set(lo, mode.as_u32() | options.bits());
-
-        self.regs.clear(lo, IRQ_MASK_BIT);
+    /// Enable interrupt number `irq`.
+    pub unsafe fn enable_irq(&mut self, irq: u8) {
+        self.regs.clear(irq_entry::lo(irq), IrqFlags::MASKED.bits());
     }
 
     /// Disable interrupt number `irq`.
     pub unsafe fn disable_irq(&mut self, irq: u8) {
-        self.regs.set(irq_entry::lo(irq), IRQ_MASK_BIT);
+        self.regs.set(irq_entry::lo(irq), IrqFlags::MASKED.bits());
     }
 }
