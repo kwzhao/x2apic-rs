@@ -37,7 +37,7 @@ The timer can be configured with the builder or directly on the APIC.
 The IOAPIC is initialized like so:
 
 ```rust
-use x2apic::ioapic::{IoApic, IrqFlags, IrqMode};
+use x2apic::ioapic::{IoApic, IrqFlags, IrqMode, RedirectionTableEntry};
 
 // !!! Map the IOAPIC's MMIO address `addr` here !!!
 
@@ -46,12 +46,13 @@ unsafe {
 
     ioapic.init(irq_offset);
 
-    ioapic.enable_irq(
-        irq_number,
-        dest, // CPU(s)
-        IrqMode::Fixed,
-        IrqFlags::LEVEL_TRIGGERED | IrqFlags::LOW_ACTIVE,
-    );
+    let mut entry = RedirectionTableEntry::default();
+    entry.set_mode(IrqMode::Fixed);
+    entry.set_flags(IrqFlags::LEVEL_TRIGGERED | IrqFlags::LOW_ACTIVE | IrqFlags::MASKED);
+    entry.set_dest(dest); // CPU(s)
+    ioapic.set_table_entry(irq_number, entry);
+
+    ioapic.enable_irq(irq_number);
 }
 ```
 
