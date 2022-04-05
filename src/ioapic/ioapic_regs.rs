@@ -1,6 +1,6 @@
 use core::ptr::{self, Unique};
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct IoApicRegisters {
     ioregsel: Unique<u32>,
     ioregwin: Unique<u32>,

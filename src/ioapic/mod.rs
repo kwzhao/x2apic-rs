@@ -7,7 +7,7 @@ mod irq_entry;
 pub use irq_entry::{IrqFlags, IrqMode, RedirectionTableEntry};
 
 /// The IOAPIC structure.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct IoApic {
     regs: IoApicRegisters,
 }
