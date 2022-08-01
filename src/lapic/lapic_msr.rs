@@ -266,7 +266,7 @@ impl LocalApicRegisters {
         self.write_icr(icr);
     }
 
-    read!(id);
+    read_write!(id);
     read!(version);
     read_write!(tpr);
     read!(ppr);

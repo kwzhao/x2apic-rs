@@ -5,6 +5,7 @@ use raw_cpuid::CpuId;
 /// The builder pattern for configuring the local APIC.
 #[derive(Debug, Default)]
 pub struct LocalApicBuilder {
+    id: Option<u32>,
     timer_vector: Option<usize>,
     error_vector: Option<usize>,
     spurious_vector: Option<usize>,
@@ -22,6 +23,12 @@ impl LocalApicBuilder {
     /// Returns a new local APIC builder.
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Sets the ID of the APIC to activate, if specified.
+    pub fn id(&mut self, id: u32) -> &mut Self {
+        self.id = Some(id);
+        self
     }
 
     /// Sets the interrupt index of timer interrupts.
@@ -108,6 +115,14 @@ impl LocalApicBuilder {
             }
         };
 
+        let mut regs = LocalApicRegisters::new(mode);
+        
+        if self.id.is_some() {
+            unsafe { regs.write_id(self.id.unwrap()) };
+        } else {
+            unsafe { regs.id() };
+        }
+
         if self.timer_vector.is_none()
             || self.error_vector.is_none()
             || self.spurious_vector.is_none()
@@ -125,8 +140,8 @@ impl LocalApicBuilder {
             ipi_destination_mode: self
                 .ipi_destination_mode
                 .unwrap_or(IpiDestMode::Physical),
-            regs: LocalApicRegisters::new(mode),
-            mode: mode,
+            regs,
+            mode,
         })
     }
 }
