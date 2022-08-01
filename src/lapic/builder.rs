@@ -119,8 +119,6 @@ impl LocalApicBuilder {
         
         if self.id.is_some() {
             unsafe { regs.write_id(self.id.unwrap()) };
-        } else {
-            unsafe { regs.id() };
         }
 
         if self.timer_vector.is_none()
