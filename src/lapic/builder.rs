@@ -116,7 +116,7 @@ impl LocalApicBuilder {
         };
 
         let mut regs = LocalApicRegisters::new(mode);
-        
+
         if self.id.is_some() {
             unsafe { regs.write_id(self.id.unwrap()) };
         }
