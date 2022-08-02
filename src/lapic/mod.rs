@@ -269,16 +269,20 @@ impl LocalApic {
     }
 
     unsafe fn remap_lvt_entries(&mut self) {
-        self.regs.set_lvt_timer_bit_range(
-            LVT_TIMER_VECTOR,
-            self.timer_vector as u32,
-        );
-        self.regs.set_lvt_error_bit_range(
-            LVT_ERROR_VECTOR,
-            self.error_vector as u32,
-        );
-        self.regs
-            .set_sivr_bit_range(SIVR_VECTOR, self.spurious_vector as u32);
+        if self.timer_vector > 255 || self.error_vector > 255 || self.spurious_vector > 255 {
+            panic!("Vector entry too large: timer, error, and spurious vectors must be 8 bits in length");
+        } else {
+            self.regs.set_lvt_timer_bit_range(
+                LVT_TIMER_VECTOR,
+                self.timer_vector as u32,
+            );
+            self.regs.set_lvt_error_bit_range(
+                LVT_ERROR_VECTOR,
+                self.error_vector as u32,
+            );
+            self.regs
+                .set_sivr_bit_range(SIVR_VECTOR, self.spurious_vector as u32);
+        }
     }
 
     unsafe fn configure_timer(&mut self) {
