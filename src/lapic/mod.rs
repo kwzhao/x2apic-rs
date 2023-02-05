@@ -239,6 +239,25 @@ impl LocalApic {
         );
         self.regs.write_icr(icr_val);
     }
+    
+    /// Sends an INIT IPI to the processors in `dest`.
+    pub unsafe fn send_init_ipi(&mut self, dest: u32) {
+        let mut icr_val = self.format_icr(0, IpiDeliveryMode::Init);
+
+        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        self.regs.write_icr(icr_val);
+    }
+    
+    /// Sends an INIT IPI to all other processors.
+    pub unsafe fn send_init_ipi_all(&mut self) {
+        let mut icr_val = self.format_icr(0, IpiDeliveryMode::Init);
+
+        icr_val.set_bit_range(
+            ICR_DEST_SHORTHAND,
+            IpiAllShorthand::AllExcludingSelf.into_u64(),
+        );
+        self.regs.write_icr(icr_val);
+    }
 
     /// Issues an IPI to itself on vector `irq`.
     pub unsafe fn send_ipi_self(&mut self, vector: u8) {
