@@ -1,6 +1,6 @@
 [package]
 name = "x2apic"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Kevin Zhao <kzhao0986@gmail.com>"]
 edition = "2018"
 
