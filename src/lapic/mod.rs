@@ -239,7 +239,7 @@ impl LocalApic {
         );
         self.regs.write_icr(icr_val);
     }
-    
+
     /// Sends an INIT IPI to the processors in `dest`.
     pub unsafe fn send_init_ipi(&mut self, dest: u32) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::Init);
@@ -247,7 +247,7 @@ impl LocalApic {
         icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
         self.regs.write_icr(icr_val);
     }
-    
+
     /// Sends an INIT IPI to all other processors.
     pub unsafe fn send_init_ipi_all(&mut self) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::Init);
@@ -262,6 +262,11 @@ impl LocalApic {
     /// Issues an IPI to itself on vector `irq`.
     pub unsafe fn send_ipi_self(&mut self, vector: u8) {
         self.regs.write_self_ipi(u32::from(vector));
+    }
+
+    /// Return the delivery status of the last sent IPI.
+    pub unsafe fn get_ipi_delivery_status(&self) -> bool {
+        self.regs.icr_bit(ICR_DELIVERY_STATUS)
     }
 
     fn format_icr(&self, vector: u8, mode: IpiDeliveryMode) -> u64 {
@@ -288,7 +293,10 @@ impl LocalApic {
     }
 
     unsafe fn remap_lvt_entries(&mut self) {
-        if self.timer_vector > 255 || self.error_vector > 255 || self.spurious_vector > 255 {
+        if self.timer_vector > 255
+            || self.error_vector > 255
+            || self.spurious_vector > 255
+        {
             panic!("Vector entry too large: timer, error, and spurious vectors must be 8 bits in length");
         } else {
             self.regs.set_lvt_timer_bit_range(
