@@ -513,6 +513,7 @@ pub const ICR_DESTINATION: Range<usize> = 32..64;
 pub const ICR_DEST_SHORTHAND: Range<usize> = 18..20;
 pub const ICR_TRIGGER_MODE: usize = 15;
 pub const ICR_LEVEL: usize = 14;
+pub const ICR_DELIVERY_STATUS: usize = 12;
 pub const ICR_DESTINATION_MODE: usize = 11;
 pub const ICR_DELIVERY_MODE: Range<usize> = 8..11;
 pub const ICR_VECTOR: Range<usize> = 0..8;
