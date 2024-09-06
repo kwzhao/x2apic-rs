@@ -329,3 +329,5 @@ impl LocalApic {
         self.regs.write_lvt_lint1(0);
     }
 }
+impl !Send for LocalApic {}
+impl !Sync for LocalApic {}
