@@ -120,13 +120,13 @@ impl LocalApicBuilder {
             error_vector: self.error_vector.unwrap(),
             spurious_vector: self.spurious_vector.unwrap(),
             timer_mode: self.timer_mode.unwrap_or(TimerMode::Periodic),
-            timer_divide: self.timer_divide.unwrap_or(TimerDivide::Div256),
+            timer_divide: self.timer_divide.unwrap_or(TimerDivide::Div1),
             timer_initial: self.timer_initial.unwrap_or(10_000_000),
             ipi_destination_mode: self
                 .ipi_destination_mode
                 .unwrap_or(IpiDestMode::Physical),
             regs: LocalApicRegisters::new(mode),
-            mode: mode,
+            mode,
         })
     }
 }

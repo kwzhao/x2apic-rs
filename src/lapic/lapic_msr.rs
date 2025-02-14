@@ -377,8 +377,8 @@ pub enum TimerDivide {
     Div64 = 0b1001,
     /// Divide by 128.
     Div128 = 0b1010,
-    /// Divide by 256.
-    Div256 = 0b1011,
+    /// Divide by 1.
+    Div1 = 0b1011,
 }
 
 impl TimerDivide {
