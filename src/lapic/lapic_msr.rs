@@ -393,7 +393,7 @@ impl TimerDivide {
 pub enum IpiDestMode {
     /// Physical destination mode.
     Physical = 0b0,
-    /// Logical destination mode.    
+    /// Logical destination mode.
     Logical = 0b1,
 }
 
