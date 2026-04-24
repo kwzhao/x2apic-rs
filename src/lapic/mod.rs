@@ -1,6 +1,7 @@
 //! The local APIC interface.
 
 use bit::BitIndex;
+use core::ops::Range;
 
 mod builder;
 pub use builder::xapic_base;
@@ -151,7 +152,7 @@ impl LocalApic {
     pub unsafe fn send_ipi(&mut self, vector: u8, dest: u32) {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::Fixed);
 
-        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        icr_val.set_bit_range(self.icr_destination_range(), u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -169,7 +170,7 @@ impl LocalApic {
         let mut icr_val =
             self.format_icr(vector, IpiDeliveryMode::LowestPriority);
 
-        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        icr_val.set_bit_range(self.icr_destination_range(), u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -191,7 +192,7 @@ impl LocalApic {
     pub unsafe fn send_smi(&mut self, dest: u32) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::SystemManagement);
 
-        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        icr_val.set_bit_range(self.icr_destination_range(), u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -208,7 +209,7 @@ impl LocalApic {
     pub unsafe fn send_nmi(&mut self, dest: u32) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::NonMaskable);
 
-        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        icr_val.set_bit_range(self.icr_destination_range(), u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -225,7 +226,7 @@ impl LocalApic {
     pub unsafe fn send_sipi(&mut self, vector: u8, dest: u32) {
         let mut icr_val = self.format_icr(vector, IpiDeliveryMode::StartUp);
 
-        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        icr_val.set_bit_range(self.icr_destination_range(), u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -244,7 +245,7 @@ impl LocalApic {
     pub unsafe fn send_init_ipi(&mut self, dest: u32) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::Init);
 
-        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        icr_val.set_bit_range(self.icr_destination_range(), u64::from(dest));
         self.regs.write_icr(icr_val);
     }
 
@@ -280,6 +281,13 @@ impl LocalApic {
         );
         icr_val.set_bit(ICR_LEVEL, true);
         icr_val
+    }
+
+    fn icr_destination_range(&self) -> Range<usize> {
+        match self.mode {
+            LocalApicMode::X2Apic => ICR_DESTINATION_X2APIC,
+            LocalApicMode::XApic { .. } => ICR_DESTINATION_XAPIC,
+        }
     }
 
     // Misc configuration
