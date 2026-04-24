@@ -509,7 +509,8 @@ pub const SIVR_FOCUS_PROCESSOR_CHECKING: usize = 9;
 pub const SIVR_APIC_SOFTWARE_ENABLE: usize = 8;
 pub const SIVR_VECTOR: Range<usize> = 0..8;
 
-pub const ICR_DESTINATION: Range<usize> = 32..64;
+pub const ICR_DESTINATION_X2APIC: Range<usize> = 32..64;
+pub const ICR_DESTINATION_XAPIC: Range<usize> = 56..64;
 pub const ICR_DEST_SHORTHAND: Range<usize> = 18..20;
 pub const ICR_TRIGGER_MODE: usize = 15;
 pub const ICR_LEVEL: usize = 14;
