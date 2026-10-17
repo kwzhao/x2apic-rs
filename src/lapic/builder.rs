@@ -1,5 +1,6 @@
 use crate::lapic::lapic_msr::*;
 use crate::lapic::{LocalApic, LocalApicMode};
+use core::marker::PhantomData;
 use raw_cpuid::CpuId;
 
 /// The builder pattern for configuring the local APIC.
@@ -127,6 +128,7 @@ impl LocalApicBuilder {
                 .unwrap_or(IpiDestMode::Physical),
             regs: LocalApicRegisters::new(mode),
             mode,
+            _not_send_sync: PhantomData,
         })
     }
 }

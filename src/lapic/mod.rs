@@ -1,6 +1,7 @@
 //! The local APIC interface.
 
 use bit::BitIndex;
+use core::marker::PhantomData;
 
 mod builder;
 pub use builder::xapic_base;
@@ -43,6 +44,10 @@ pub struct LocalApic {
     ipi_destination_mode: IpiDestMode,
 
     regs: LocalApicRegisters,
+
+    // Makes `LocalApic` neither `Send` nor `Sync`. Register accesses reach the
+    // local APIC of whichever CPU runs them, so it must stay on its own CPU.
+    _not_send_sync: PhantomData<*const ()>,
 }
 
 impl LocalApic {
@@ -329,9 +334,6 @@ impl LocalApic {
         self.regs.write_lvt_lint1(0);
     }
 }
-
-impl !Send for LocalApic {}
-impl !Sync for LocalApic {}
 
 // `LocalApic` must not implement `Send` or `Sync`, because its registers belong
 // to the current CPU. If `LocalApic` implements either trait, the code below
