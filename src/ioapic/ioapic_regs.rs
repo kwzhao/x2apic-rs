@@ -1,9 +1,9 @@
-use core::ptr::{self, Unique};
+use core::ptr::{self, NonNull};
 
 #[derive(Debug)]
 pub struct IoApicRegisters {
-    ioregsel: Unique<u32>,
-    ioregwin: Unique<u32>,
+    ioregsel: NonNull<u32>,
+    ioregwin: NonNull<u32>,
 }
 
 impl IoApicRegisters {
@@ -11,8 +11,8 @@ impl IoApicRegisters {
         let base = base_addr as *mut u32;
 
         IoApicRegisters {
-            ioregsel: Unique::new_unchecked(base.offset(0)),
-            ioregwin: Unique::new_unchecked(base.offset(4)),
+            ioregsel: NonNull::new_unchecked(base.offset(0)),
+            ioregwin: NonNull::new_unchecked(base.offset(4)),
         }
     }
 
