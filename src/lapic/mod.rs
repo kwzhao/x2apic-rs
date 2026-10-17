@@ -332,3 +332,24 @@ impl LocalApic {
 
 impl !Send for LocalApic {}
 impl !Sync for LocalApic {}
+
+// `LocalApic` must not implement `Send` or `Sync`, because its registers belong
+// to the current CPU. If `LocalApic` implements either trait, the code below
+// fails to compile.
+const _: fn() = || {
+    trait AmbiguousIfImpl<A> {
+        fn some_item() {}
+    }
+    impl<T: ?Sized> AmbiguousIfImpl<()> for T {}
+
+    struct IfSend;
+    impl<T: ?Sized + Send> AmbiguousIfImpl<IfSend> for T {}
+
+    struct IfSync;
+    impl<T: ?Sized + Sync> AmbiguousIfImpl<IfSync> for T {}
+
+    // If `LocalApic` implements `Send` or `Sync`, the `some_item` lookup below
+    // has more than one candidate impl and will therefore fail to compile
+    // without explicit type annotations.
+    let _ = <LocalApic as AmbiguousIfImpl<_>>::some_item;
+};

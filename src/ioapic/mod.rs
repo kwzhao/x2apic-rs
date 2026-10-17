@@ -12,6 +12,16 @@ pub struct IoApic {
     regs: IoApicRegisters,
 }
 
+// `IoApic` is `Send`, so it can be moved between CPUs or held in a
+// `static spin::Mutex<IoApic>`, and `Sync`, because every method that touches
+// the IOREGSEL/IOWIN registers (reads included, since they write IOREGSEL)
+// takes `&mut self`. Fail to compile if a change to its fields removes either
+// trait.
+const _: () = {
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<IoApic>();
+};
+
 impl IoApic {
     /// Returns an IOAPIC with the given MMIO address `base_addr`.
     ///
