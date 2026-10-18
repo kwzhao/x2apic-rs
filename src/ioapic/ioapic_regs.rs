@@ -1,18 +1,25 @@
-use core::ptr::{self, Unique};
+use core::ptr::{self, NonNull};
 
 #[derive(Debug)]
 pub struct IoApicRegisters {
-    ioregsel: Unique<u32>,
-    ioregwin: Unique<u32>,
+    ioregsel: NonNull<u32>,
+    ioregwin: NonNull<u32>,
 }
 
-impl IoApicRegisters {
-    pub unsafe fn new(base_addr: u64) -> Self {
-        let base = base_addr as *mut u32;
+// SAFETY: `IoApic::new` gives this value sole ownership of the registers and
+// requires their mapping to be valid in every address space it is used from.
+unsafe impl Send for IoApicRegisters {}
 
+// SAFETY: Every method that touches IOREGSEL/IOWIN takes `&mut self`. A shared
+// reference cannot access the registers.
+unsafe impl Sync for IoApicRegisters {}
+
+impl IoApicRegisters {
+    /// See `IoApic::new` for the safety contract.
+    pub unsafe fn new(base_addr: u64) -> Self {
         IoApicRegisters {
-            ioregsel: Unique::new_unchecked(base.offset(0)),
-            ioregwin: Unique::new_unchecked(base.offset(4)),
+            ioregsel: NonNull::new_unchecked(base_addr as *mut u32),
+            ioregwin: NonNull::new_unchecked((base_addr + 0x10) as *mut u32),
         }
     }
 
