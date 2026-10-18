@@ -12,6 +12,8 @@ use lapic_msr::*;
 pub use lapic_msr::{
     ErrorFlags, IpiAllShorthand, IpiDestMode, TimerDivide, TimerMode,
 };
+mod logical_destination_mode;
+pub use logical_destination_mode::*;
 
 /// Specifies which version of the APIC specification we are operating in
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -150,6 +152,17 @@ impl LocalApic {
     /// This is used when the APIC is in logical mode.
     pub unsafe fn set_logical_id(&mut self, dest: u32) {
         self.regs.write_ldr(dest);
+    }
+
+    /// In xAPIC, the DFR (destination format register) is read to determine if the mode is flat model or cluster model.
+    /// In x2APIC, flat model is not supported and it is always cluster model   
+    pub fn get_logical_destination_mode(&mut self) -> LogicalDestinationMode {
+        match self.mode {
+            LocalApicMode::XApic { xapic_base: _ } => {
+                LogicalDestinationMode::from_dfr(unsafe { self.regs.dfr() })
+            }
+            LocalApicMode::X2Apic => LogicalDestinationMode::ClusterModel,
+        }
     }
 
     /// Sends an IPI to the processor(s) in `dest`.

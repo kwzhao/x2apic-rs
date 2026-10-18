@@ -77,6 +77,7 @@ pub struct LocalApicRegisters {
     ppr: LocalApicRegister,
     eoi: LocalApicRegister,
     ldr: LocalApicRegister,
+    dfr: LocalApicRegister,
     sivr: LocalApicRegister,
     isr0: LocalApicRegister,
     isr1: LocalApicRegister,
@@ -190,6 +191,7 @@ impl LocalApicRegisters {
             ppr: LocalApicRegister::new(mode, PPR),
             eoi: LocalApicRegister::new(mode, EOI),
             ldr: LocalApicRegister::new(mode, LDR),
+            dfr: LocalApicRegister::new(mode, DFR),
             sivr: LocalApicRegister::new(mode, SIVR),
             isr0: LocalApicRegister::new(mode, ISR_0),
             isr1: LocalApicRegister::new(mode, ISR_1),
@@ -272,6 +274,7 @@ impl LocalApicRegisters {
     read!(ppr);
     write!(eoi);
     read_write!(ldr);
+    read_write!(dfr);
     read_write!(sivr);
     read!(isr0);
     read!(isr1);
@@ -449,6 +452,8 @@ pub const TPR: (u32, u32) = (0x808, 0x080);
 pub const PPR: (u32, u32) = (0x80A, 0x0A0);
 pub const EOI: (u32, u32) = (0x80B, 0x0B0);
 pub const LDR: (u32, u32) = (0x80D, 0x0D0);
+/// Note: the x2APIC MSR doesn't actually exist and should not be accessed
+pub const DFR: (u32, u32) = (0x80E, 0x0E0);
 pub const SIVR: (u32, u32) = (0x80F, 0x0F0);
 
 pub const ISR_0: (u32, u32) = (0x810, 0x100);
