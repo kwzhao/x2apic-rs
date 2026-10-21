@@ -8,10 +8,13 @@ pub use builder::xapic_base;
 pub use builder::LocalApicBuilder;
 
 mod lapic_msr;
+use lapic_id::decode_lapic_id;
+use lapic_id::encode_lapic_id;
 use lapic_msr::*;
 pub use lapic_msr::{
     ErrorFlags, IpiAllShorthand, IpiDestMode, TimerDivide, TimerMode,
 };
+mod lapic_id;
 
 /// Specifies which version of the APIC specification we are operating in
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -87,7 +90,7 @@ impl LocalApic {
 
     /// Returns the local APIC ID.
     pub unsafe fn id(&self) -> u32 {
-        self.regs.id() as u32
+        decode_lapic_id(self.regs.id(), self.mode)
     }
 
     /// Returns the version number of the local APIC.
@@ -145,11 +148,21 @@ impl LocalApic {
         self.regs.tccr() as u32
     }
 
-    /// Sets the logical x2APIC ID.
+    /// Sets the logical xAPIC ID.
+    /// This can only be set in xAPIC mode.
+    /// IN x2APIC mode, this is read-only.
+    pub unsafe fn set_logical_id(&mut self, dest: u32) {
+        if let LocalApicMode::X2Apic = self.mode {
+            panic!("Cannot set the logical id because LDR is read-only in x2APIC mode.")
+        }
+        self.regs.write_ldr(encode_lapic_id(dest, self.mode));
+    }
+
+    /// Gets the logical x2APIC ID.
     ///
     /// This is used when the APIC is in logical mode.
-    pub unsafe fn set_logical_id(&mut self, dest: u32) {
-        self.regs.write_ldr(dest);
+    pub fn get_logical_id(&mut self) -> u32 {
+        decode_lapic_id(unsafe { self.regs.ldr() }, self.mode)
     }
 
     /// Sends an IPI to the processor(s) in `dest`.
@@ -213,7 +226,10 @@ impl LocalApic {
     pub unsafe fn send_nmi(&mut self, dest: u32) {
         let mut icr_val = self.format_icr(0, IpiDeliveryMode::NonMaskable);
 
-        icr_val.set_bit_range(ICR_DESTINATION, u64::from(dest));
+        icr_val.set_bit_range(
+            ICR_DESTINATION,
+            u64::from(encode_lapic_id(dest, self.mode)),
+        );
         self.regs.write_icr(icr_val);
     }
 
