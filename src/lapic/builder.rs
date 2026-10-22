@@ -133,7 +133,8 @@ impl LocalApicBuilder {
     }
 }
 
-fn cpu_has_x2apic() -> bool {
+/// Check if the CPU has X2APIC support.
+pub fn cpu_has_x2apic() -> bool {
     let cpuid = CpuId::new();
 
     match cpuid.get_feature_info() {

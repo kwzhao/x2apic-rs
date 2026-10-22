@@ -4,6 +4,7 @@ use bit::BitIndex;
 use core::marker::PhantomData;
 
 mod builder;
+pub use builder::cpu_has_x2apic;
 pub use builder::xapic_base;
 pub use builder::LocalApicBuilder;
 
